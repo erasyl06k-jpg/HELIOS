@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Оценка движений руки</title>
+<style>
+:root{--bg:#eef2f6;--panel:#fff;--ink:#1b2b3a;--mute:#5b6b7a;--line:#d5dde6;--teal:#1f7a8c;--ok:#2f7d5b;--warn:#a8650f;--okbg:#e3f2ea;--warnbg:#fbefd9}
+@media (prefers-color-scheme:dark){:root{--bg:#18222c;--panel:#212e3a;--ink:#e7eef5;--mute:#9db0c1;--line:#33444f;--teal:#52b5c8;--ok:#6cc79a;--warn:#e3a85a;--okbg:#1d3a2c;--warnbg:#3d2f17}}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Source Sans 3","Segoe UI",system-ui,sans-serif}
+header{padding:20px 24px 4px}
+h1{margin:0;font-size:26px;font-weight:650}
+header p{margin:4px 0 0;color:var(--mute);max-width:70ch}
+main{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px 24px 32px}
+.wide{grid-column:1/-1}
+@media(max-width:860px){main{grid-template-columns:1fr}}
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+h2{margin:0 0 10px;font-size:17px}
+video,canvas{width:100%;border-radius:6px;background:#0d1620;display:block}
+.stage{position:relative}.stage video{min-height:200px}.stage canvas{position:absolute;inset:0;height:100%;pointer-events:none;background:transparent}
+#count{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:clamp(70px,16vw,150px);font-weight:700;color:#fff;background:rgba(0,0,0,.5);border-radius:6px;z-index:3;text-shadow:0 2px 12px rgba(0,0,0,.6)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 0;align-items:center}
+button,label.btn{font:inherit;border:1px solid var(--teal);background:transparent;color:var(--teal);padding:7px 14px;border-radius:6px;cursor:pointer}
+button.primary{background:var(--teal);color:#fff}
+button[aria-pressed="true"]{background:var(--teal);color:#fff}
+button:focus-visible,label.btn:focus-within{outline:3px solid var(--teal);outline-offset:2px}
+.sidebox{margin-top:10px;padding:10px 12px;border:1px dashed var(--teal);border-radius:8px}
+.sidebox.need{border-color:var(--warn);background:var(--warnbg)}
+.sidebox b{margin-right:6px}
+.verdict{min-height:84px;border-radius:8px;padding:12px 14px;margin-top:10px;background:var(--bg);border:1px solid var(--line)}
+.verdict.ok{background:var(--okbg);border-color:var(--ok)}.verdict.warn{background:var(--warnbg);border-color:var(--warn)}
+.verdict b{font-size:22px}
+.sidehead{font-weight:650;margin:12px 0 0;color:var(--teal)}
+.msg{margin-top:10px;padding:12px 14px;border-radius:8px;border:1px solid var(--line);background:var(--bg);font-size:18px;font-weight:600;min-height:52px}
+.msg.ok{background:var(--okbg);border-color:var(--ok);color:var(--ok)}.msg.warn{background:var(--warnbg);border-color:var(--warn);color:var(--warn)}
+ol.cl{list-style:none;margin:0;padding:0;max-height:110px;overflow:auto}
+ol.cl li{display:flex;justify-content:space-between;gap:10px;padding:7px 4px;border-top:1px solid var(--line);font-size:15px}
+ol.cl li span:first-child::before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;background:var(--c)}
+small{color:var(--mute)}
+select{font:inherit;padding:7px;border-radius:6px;border:1px solid var(--teal);background:var(--panel);color:var(--ink)}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px 24px 32px;max-width:980px}
+@media(max-width:620px){.cards{grid-template-columns:1fr}}
+button.card{display:block;text-align:left;padding:18px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-left:6px solid var(--c)}
+button.card:hover{border-color:var(--c);box-shadow:0 2px 10px rgba(0,0,0,.12)}
+button.card b{display:block;font-size:20px;margin-bottom:4px}
+button.card span{color:var(--mute);font-size:15px}
+button.card em{display:block;margin-top:10px;font-style:normal;color:var(--teal);font-size:14px}
+.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:16px 24px 0}
+.top h1{font-size:24px}
+ol.steps{margin:6px 0 10px;padding-left:22px;columns:2;column-gap:32px}ol.steps li{margin:4px 0;break-inside:avoid;border-radius:4px;padding:1px 4px}
+ol.steps li.reading{background:var(--okbg)}
+@media(max-width:860px){ol.steps{columns:1}}
+.tip{margin:8px 0 12px;font-size:14px;color:var(--mute)}
+.vids{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:860px){.vids{grid-template-columns:1fr}}
+figure{margin:0}figcaption{font-weight:650;margin-bottom:6px}
+iframe#embed{width:100%;aspect-ratio:16/9;border:0;border-radius:6px;background:#0d1620}
+.legend{display:flex;gap:6px 14px;flex-wrap:wrap;margin-top:8px;font-size:14px}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;background:var(--c)}
+#home{padding-bottom:64px}
+#langbar{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;justify-content:center;align-items:center;gap:8px;padding:8px 12px;background:var(--panel);border-top:1px solid var(--line)}
+#langbar button{padding:3px 12px;font-size:14px;border-radius:14px}
+</style>
+</head>
+<body>
+<div id="home">
+  <header>
+    <h1 data-i="appTitle"></h1>
+    <p data-i="homeIntro"></p>
+  </header>
+  <div class="cards" id="cards"></div>
+  <header><small id="mdl"></small></header>
+  <div id="langbar" role="group" aria-label="Language / Тіл / Язык">
+    <button data-lang="kk" aria-pressed="false">Қазақша</button>
+    <button data-lang="ru" aria-pressed="false">Русский</button>
+    <button data-lang="en" aria-pressed="false">English</button>
+  </div>
+</div>
+
+<div id="ex" hidden>
+  <div class="top"><button id="back" data-i="back"></button><h1 id="exTitle"></h1></div>
+  <header><p id="exDesc"></p></header>
+  <main>
+    <section class="wide">
+      <h2 data-i="hInstr"></h2>
+      <div class="row" style="margin:0 0 6px"><button id="listen" class="primary"></button><small class="vn"></small></div>
+      <ol class="steps" id="steps"></ol>
+      <p class="tip" id="tip"></p>
+      <div class="vids">
+        <figure>
+          <figcaption data-i="video1"></figcaption>
+          <video id="guide" controls playsinline hidden></video>
+          <iframe id="embed" hidden allow="accelerometer; autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen title="video"></iframe>
+          <canvas id="demo" width="640" height="300" role="img"></canvas>
+          <small id="guideNote"></small>
+        </figure>
+        <figure>
+          <figcaption data-i="video2"></figcaption>
+          <canvas id="human" width="640" height="360" role="img"></canvas>
+          <small data-i="video2note"></small>
+        </figure>
+      </div>
+      <div class="row"><button id="pause"></button><label><input type="checkbox" id="slow"> <span data-i="slow"></span></label></div>
+    </section>
+    <section>
+      <h2 data-i="hMove"></h2>
+      <div class="stage"><video id="src" playsinline muted autoplay></video><canvas id="ov"></canvas><div id="count" hidden></div></div>
+      <div class="legend">
+        <span><i style="--c:#e3a85a"></i><span data-i="k_shoulder"></span></span><span><i style="--c:#ef6f6f"></i><span data-i="k_elbow"></span></span><span><i style="--c:#52b5c8"></i><span data-i="k_forearm"></span></span><span><i style="--c:#c77dba"></i><span data-i="k_wrist"></span></span><span><i style="--c:#6cc79a"></i><span data-i="k_hand"></span></span>
+      </div>
+      <div class="sidebox" id="sideBox" role="group">
+        <b data-i="chooseSide"></b>
+        <span class="row" style="display:inline-flex;margin:0">
+          <button class="side" data-side="R" aria-pressed="false" data-i="sideR"></button>
+          <button class="side" data-side="L" aria-pressed="false" data-i="sideL"></button>
+          <button class="side" data-side="B" id="sideB" aria-pressed="false" data-i="sideB" hidden></button>
+        </span>
+      </div>
+      <div class="row">
+        <button class="primary" id="cam" data-i="cam"></button>
+        <label class="btn"><span data-i="upload"></span><input id="file" type="file" accept="video/*" hidden></label>
+        <button id="redo" hidden data-i="redo"></button>
+        <select id="engine"><option value="mp" data-i="engMP"></option><option value="movenet" data-i="engMN"></option></select>
+        <button id="stop" data-i="stop"></button>
+        <label><input type="checkbox" id="voice" checked> <span data-i="voice"></span></label>
+      </div>
+      <progress id="prog" hidden style="width:100%;margin-top:8px"></progress><br><small id="status"></small> <small class="vn"></small>
+      <div class="msg" id="msg" role="status" aria-live="polite"></div>
+    </section>
+    <section>
+      <h2 data-i="hResult"></h2>
+      <div id="overall" role="status" hidden style="padding:10px 14px;border-radius:8px;border:1px solid var(--teal)"></div>
+      <div id="joints" style="margin-top:10px"></div>
+      <div class="row"><button id="exp" data-i="exp"></button><button id="reset" data-i="reset"></button></div>
+    </section>
+  </main>
+</div>
+<script type="module">
+const $=id=>document.getElementById(id), vid=$("src"), ov=$("ov"), octx=ov.getContext("2d");
+const CONF_MIN=0.70;
+const COL={up:"#e3a85a",elb:"#ef6f6f",fore:"#52b5c8",wr:"#c77dba",hand:"#6cc79a",hip:"#9db0c1"};
+const lerp=(a,b,k)=>a+(b-a)*k;
+
+/* ============ ВИДЕО 1: реальные люди (ЛФК) ============
+   Вариант А: положите рядом со страницей файлы instruction_<id>_<язык>.mp4 (kk/ru/en) или instruction_<id>.mp4.
+   Вариант Б: укажите ссылку на встраиваемое видео (YouTube: https://www.youtube.com/embed/ID ; Rutube: https://rutube.ru/play/embed/ID).
+   Если ничего нет - показывается схема движения. */
+const VIDEO_EMBED={lift:"",elbow:"",wrist:"",palm:""};
+
+/* ============ ПЕРЕВОДЫ ============ */
+const L={
+ru:{
+appTitle:"Оценка движений руки",
+homeIntro:"Выберите упражнение. В каждом свой раздел: инструкция (видео и модель человека), запись движения и результат с голосовой и текстовой подсказкой. Видео остаётся на вашем устройстве.",
+openSection:"Открыть раздел →",back:"← Все упражнения",hInstr:"1. Инструкция",
+video1:"Видео 1. Реальный человек выполняет упражнение (ЛФК)",video2:"Видео 2. Модель человека выполняет движение",
+video2note:"Цвета частей руки совпадают с разметкой на вашем видео.",
+noteScheme:"Показана схема движения. Чтобы показать видео с реальным человеком, положите рядом файл instruction_{id}.mp4 или укажите ссылку в VIDEO_EMBED.",
+noteVideo:"Видео: упражнение выполняет реальный человек.",
+pause:"Пауза",resume:"Продолжить",slow:"Замедлить",
+listen:"🔊 Прослушать инструкцию",stopListen:"⏹ Остановить чтение",
+hMove:"2. Ваше движение",hResult:"Результат",
+k_shoulder:"плечо",k_elbow:"локоть",k_forearm:"предплечье",k_wrist:"запястье",k_hand:"кисть",k_shj:"плечевой сустав",k_hip:"таз",k_obj:"предмет",k_palm:"ладонь",k_fingers:"пальцы",k_support:"опора (стол)",k_avg:"ср. угол пальцев ≈",k_one:"показан один палец, считается среднее по четырём",k_step:"Шаг {i} из 4",
+chooseSide:"Выберите руку:",sideR:"Правая рука",sideL:"Левая рука",sideB:"Обе руки",
+pickSide:"Сначала выберите руку: правую или левую.",pickSideB:"Сначала выберите руку: правую, левую или обе.",
+cam:"Включить камеру",upload:"Загрузить видео",redo:"Повторить это видео",engMP:"MediaPipe Pose + Hands",engMN:"MoveNet Lightning (только подъём и локоть)",stop:"Остановить",voice:"Голос",
+exp:"Экспорт циклов (ZIP)",reset:"Начать заново",
+mdlBase:"Модель: базовое правило.",mdlLoaded:"Локоть: логистическая регрессия (model.json). Остальные упражнения: правило с начальными порогами.",
+msgDefault:"Выполняйте упражнение. Здесь появится сообщение: верно или неверно.",msgAnalyzing:"Идёт анализ видео…",
+getReady:"Приготовьтесь. Запись начнётся через 3 секунды.",go:"Начали!",n3:"три",n2:"два",n1:"один",
+exStart:"Упражнение: {name}. Начинайте движение.",
+loadMP:"Загружается MediaPipe Pose (около 5 МБ), подождите…",loadMN:"Загружается MoveNet Lightning, подождите…",
+tracking:"Отслеживается.",analyzing:"Идёт анализ…",fileProg:"Анализ видео: {p}%",
+fileDone:"Видео обработано. Можно загрузить другое видео, включить камеру или нажать «Начать заново».",
+stopped:"Остановлено. Можно включить камеру или загрузить видео снова.",
+resetSt:"Результаты сброшены. Включите камеру или загрузите видео.",resetStMp:"Результаты сброшены. Для этого упражнения нужна модель MediaPipe.",
+resetMsg:"Готово. Включите камеру или загрузите видео, чтобы начать заново.",
+noCam:"Нет доступа к камере. Разрешите её в браузере или загрузите видео.",
+loadFail:"Не удалось загрузить модель. Проверьте интернет и откройте консоль браузера (F12).",
+mpOnly:"Для этого упражнения нужны точки кисти, которых нет в MoveNet. Выберите MediaPipe в списке.",
+noDur:"Не удалось прочитать длительность видео.",noExport:"Нет циклов для экспорта.",
+okMsg:"✔ Верно: цикл {n} выполнен правильно.",badMsg:"✖ Неверно: цикл {n} не засчитан. Причина: {why}. Проверьте инструкцию.",
+voiceOk:"Верно. Движение выполнено.",voiceBad:"Неверно. {why}. Проверьте инструкцию.",
+vOk:"<b>Выполнено</b> · цикл {n}, уверенность {p}%",vBad:"<b>Проверьте инструкцию</b> · цикл {n}, уверенность {p}%. Причина: {why}.",
+notDone:"Цикл ещё не завершён.",stats:"Циклов: {n}, выполнено: {ok}, проверить: {bad}",stats0:"Циклов: 0",
+cycOk:"Цикл {n}: выполнено",cycBad:"Цикл {n}: проверьте",
+rSmall:"малая амплитуда",rConf:"низкая уверенность",rInc:"модель оценила цикл как неполный",
+sumHtml:"<b>Итог</b>: выполнено {ok} из {n} циклов ({p}%){cov}",sumNone:"<b>Итог</b>: циклы не найдены{cov}",cov:" (в кадре {c}%)",
+sumVoice:"Итог: выполнено {ok} из {n} циклов.",sumVoiceNone:"Циклы не найдены. Проверьте, что рука видна целиком.",
+missPalm:"Кисть не видна. Поднесите ладонь ближе к камере.",missLift:"Рука или нужные точки не видны (нужны таз и рука). Отойдите от камеры.",missArm:"Рука или нужные точки не видны. Встаньте боком, чтобы рука была видна целиком.",
+missHand:"Кисть не видна или это другая рука. Покажите выбранную руку: {side}.",missVPalm:"Кисть не видна.",missVArm:"Рука не видна.",
+rule:"Засчитывается, если размах угла не меньше {rom}° и максимум не ниже {max}°",ruleStill:", а {name} остаётся неподвижным (отклонение не больше {s}°)",
+noVoice:"Русский голос в системе не найден, сообщения только текстом.",noSynth:"Голос не поддерживается браузером, сообщения только текстом.",voiceIs:"Голос: {n}.",
+exportHead:"t,angle"},
+kk:{
+appTitle:"Қол қимылын бағалау",
+homeIntro:"Жаттығуды таңдаңыз. Әр бөлімде нұсқаулық (бейне және адам моделі), қимылды жазу және дауыстық әрі мәтіндік кеңеспен нәтиже бар. Бейне сіздің құрылғыңызда қалады.",
+openSection:"Бөлімді ашу →",back:"← Барлық жаттығулар",hInstr:"1. Нұсқаулық",
+video1:"1-бейне. Нақты адам жаттығуды орындайды (ЕДШ)",video2:"2-бейне. Адам моделі қимылды орындайды",
+video2note:"Қол бөліктерінің түстері сіздің бейнеңіздегі белгілермен сәйкес келеді.",
+noteScheme:"Қимыл сызбасы көрсетілген. Нақты адамның бейнесін көрсету үшін instruction_{id}.mp4 файлын қасына салыңыз немесе VIDEO_EMBED ішінде сілтеме көрсетіңіз.",
+noteVideo:"Бейне: жаттығуды нақты адам орындайды.",
+pause:"Үзіліс",resume:"Жалғастыру",slow:"Баяулату",
+listen:"🔊 Нұсқаулықты тыңдау",stopListen:"⏹ Оқуды тоқтату",
+hMove:"2. Сіздің қимылыңыз",hResult:"Нәтиже",
+k_shoulder:"иық",k_elbow:"шынтақ",k_forearm:"білек",k_wrist:"білек буыны",k_hand:"қол басы",k_shj:"иық буыны",k_hip:"жамбас",k_obj:"зат",k_palm:"алақан",k_fingers:"саусақтар",k_support:"тірек (үстел)",k_avg:"саусақтардың орт. бұрышы ≈",k_one:"бір саусақ көрсетілген, төртеуінің орташасы есептеледі",k_step:"{i}-қадам / 4",
+chooseSide:"Қолды таңдаңыз:",sideR:"Оң қол",sideL:"Сол қол",sideB:"Екі қол",
+pickSide:"Алдымен қолды таңдаңыз: оң немесе сол.",pickSideB:"Алдымен қолды таңдаңыз: оң, сол немесе екеуі.",
+cam:"Камераны қосу",upload:"Бейне жүктеу",redo:"Осы бейнені қайталау",engMP:"MediaPipe Pose + Hands",engMN:"MoveNet Lightning (тек көтеру және шынтақ)",stop:"Тоқтату",voice:"Дауыс",
+exp:"Циклдарды экспорттау (ZIP)",reset:"Қайта бастау",
+mdlBase:"Модель: базалық ереже.",mdlLoaded:"Шынтақ: логистикалық регрессия (model.json). Қалған жаттығулар: бастапқы шектері бар ереже.",
+msgDefault:"Жаттығуды орындаңыз. Осында хабарлама шығады: дұрыс немесе қате.",msgAnalyzing:"Бейне талдануда…",
+getReady:"Дайындалыңыз. Жазу 3 секундтан кейін басталады.",go:"Бастадық!",n3:"үш",n2:"екі",n1:"бір",
+exStart:"Жаттығу: {name}. Қимылды бастаңыз.",
+loadMP:"MediaPipe Pose жүктелуде (шамамен 5 МБ), күте тұрыңыз…",loadMN:"MoveNet Lightning жүктелуде, күте тұрыңыз…",
+tracking:"Қадағалануда.",analyzing:"Талдау жүріп жатыр…",fileProg:"Бейнені талдау: {p}%",
+fileDone:"Бейне өңделді. Басқа бейне жүктеуге, камераны қосуға немесе «Қайта бастау» түймесін басуға болады.",
+stopped:"Тоқтатылды. Камераны қосуға немесе бейнені қайта жүктеуге болады.",
+resetSt:"Нәтижелер тазартылды. Камераны қосыңыз немесе бейне жүктеңіз.",resetStMp:"Нәтижелер тазартылды. Бұл жаттығуға MediaPipe моделі қажет.",
+resetMsg:"Дайын. Қайта бастау үшін камераны қосыңыз немесе бейне жүктеңіз.",
+noCam:"Камераға рұқсат жоқ. Браузерде рұқсат беріңіз немесе бейне жүктеңіз.",
+loadFail:"Модельді жүктеу мүмкін болмады. Интернетті тексеріп, браузер консолін (F12) ашыңыз.",
+mpOnly:"Бұл жаттығуға MoveNet-те жоқ қол басының нүктелері қажет. Тізімнен MediaPipe таңдаңыз.",
+noDur:"Бейненің ұзақтығын оқу мүмкін болмады.",noExport:"Экспорттайтын цикл жоқ.",
+okMsg:"✔ Дұрыс: {n}-цикл дұрыс орындалды.",badMsg:"✖ Қате: {n}-цикл есепке алынбады. Себебі: {why}. Нұсқаулықты тексеріңіз.",
+voiceOk:"Дұрыс. Қимыл орындалды.",voiceBad:"Қате. {why}. Нұсқаулықты тексеріңіз.",
+vOk:"<b>Орындалды</b> · {n}-цикл, сенімділік {p}%",vBad:"<b>Нұсқаулықты тексеріңіз</b> · {n}-цикл, сенімділік {p}%. Себебі: {why}.",
+notDone:"Цикл әлі аяқталған жоқ.",stats:"Цикл саны: {n}, орындалды: {ok}, тексеру керек: {bad}",stats0:"Цикл саны: 0",
+cycOk:"{n}-цикл: орындалды",cycBad:"{n}-цикл: тексеріңіз",
+rSmall:"амплитуда аз",rConf:"сенімділік төмен",rInc:"модель циклді толық емес деп бағалады",
+sumHtml:"<b>Қорытынды</b>: {n} циклдің {ok}-і орындалды ({p}%){cov}",sumNone:"<b>Қорытынды</b>: цикл табылмады{cov}",cov:" (кадрда {c}%)",
+sumVoice:"Қорытынды: {n} циклдің {ok}-і орындалды.",sumVoiceNone:"Цикл табылмады. Қолдың толық көрінетінін тексеріңіз.",
+missPalm:"Қол басы көрінбейді. Алақанды камераға жақындатыңыз.",missLift:"Қол немесе қажетті нүктелер көрінбейді (жамбас пен қол керек). Камерадан алыстаңыз.",missArm:"Қол немесе қажетті нүктелер көрінбейді. Қол толық көрінетіндей бүйірімен тұрыңыз.",
+missHand:"Қол басы көрінбейді немесе бұл басқа қол. Таңдалған қолды көрсетіңіз: {side}.",missVPalm:"Қол басы көрінбейді.",missVArm:"Қол көрінбейді.",
+rule:"Бұрыш амплитудасы кемінде {rom}° және максимум {max}°-тан кем болмаса есепке алынады",ruleStill:", ал {name} қозғалмай тұрады (ауытқу {s}°-тан аспайды)",
+noVoice:"Жүйеде қазақ дауысы табылмады, хабарламалар тек мәтінмен.",noSynth:"Браузер дауысты қолдамайды, хабарламалар тек мәтінмен.",voiceIs:"Дауыс: {n}.",
+exportHead:"t,angle"},
+en:{
+appTitle:"Arm Movement Assessment",
+homeIntro:"Choose an exercise. Each has its own section: instructions (video and human model), motion capture and a result with voice and text feedback. Your video stays on your device.",
+openSection:"Open section →",back:"← All exercises",hInstr:"1. Instructions",
+video1:"Video 1. A real person performs the exercise (physical therapy)",video2:"Video 2. Human model performs the movement",
+video2note:"Arm part colors match the markup on your video.",
+noteScheme:"A movement diagram is shown. To show a video of a real person, put the file instruction_{id}.mp4 next to this page or set a link in VIDEO_EMBED.",
+noteVideo:"Video: a real person performs the exercise.",
+pause:"Pause",resume:"Resume",slow:"Slow down",
+listen:"🔊 Listen to instructions",stopListen:"⏹ Stop reading",
+hMove:"2. Your movement",hResult:"Result",
+k_shoulder:"shoulder",k_elbow:"elbow",k_forearm:"forearm",k_wrist:"wrist",k_hand:"hand",k_shj:"shoulder joint",k_hip:"hip",k_obj:"object",k_palm:"palm",k_fingers:"fingers",k_support:"support (table)",k_avg:"avg. finger angle ≈",k_one:"one finger shown, the average of four is used",k_step:"Step {i} of 4",
+chooseSide:"Choose arm:",sideR:"Right arm",sideL:"Left arm",sideB:"Both arms",
+pickSide:"First choose an arm: right or left.",pickSideB:"First choose an arm: right, left or both.",
+cam:"Start camera",upload:"Upload video",redo:"Replay this video",engMP:"MediaPipe Pose + Hands",engMN:"MoveNet Lightning (lift and elbow only)",stop:"Stop",voice:"Voice",
+exp:"Export cycles (ZIP)",reset:"Start over",
+mdlBase:"Model: basic rule.",mdlLoaded:"Elbow: logistic regression (model.json). Other exercises: rule with initial thresholds.",
+msgDefault:"Do the exercise. A message will appear here: correct or incorrect.",msgAnalyzing:"Analyzing video…",
+getReady:"Get ready. Recording starts in 3 seconds.",go:"Go!",n3:"three",n2:"two",n1:"one",
+exStart:"Exercise: {name}. Start moving.",
+loadMP:"Loading MediaPipe Pose (about 5 MB), please wait…",loadMN:"Loading MoveNet Lightning, please wait…",
+tracking:"Tracking.",analyzing:"Analyzing…",fileProg:"Analyzing video: {p}%",
+fileDone:"Video processed. You can upload another video, start the camera or press “Start over”.",
+stopped:"Stopped. You can start the camera or upload a video again.",
+resetSt:"Results cleared. Start the camera or upload a video.",resetStMp:"Results cleared. This exercise needs the MediaPipe model.",
+resetMsg:"Ready. Start the camera or upload a video to begin again.",
+noCam:"No camera access. Allow it in the browser or upload a video.",
+loadFail:"Could not load the model. Check your internet and open the browser console (F12).",
+mpOnly:"This exercise needs hand points that MoveNet does not have. Choose MediaPipe in the list.",
+noDur:"Could not read the video duration.",noExport:"No cycles to export.",
+okMsg:"✔ Correct: cycle {n} was done correctly.",badMsg:"✖ Incorrect: cycle {n} not counted. Reason: {why}. Check the instructions.",
+voiceOk:"Correct. Movement completed.",voiceBad:"Incorrect. {why}. Check the instructions.",
+vOk:"<b>Done</b> · cycle {n}, confidence {p}%",vBad:"<b>Check the instructions</b> · cycle {n}, confidence {p}%. Reason: {why}.",
+notDone:"Cycle not finished yet.",stats:"Cycles: {n}, done: {ok}, to check: {bad}",stats0:"Cycles: 0",
+cycOk:"Cycle {n}: done",cycBad:"Cycle {n}: check",
+rSmall:"range of motion too small",rConf:"low confidence",rInc:"the model rated the cycle as incomplete",
+sumHtml:"<b>Summary</b>: {ok} of {n} cycles done ({p}%){cov}",sumNone:"<b>Summary</b>: no cycles found{cov}",cov:" (in frame {c}%)",
+sumVoice:"Summary: {ok} of {n} cycles done.",sumVoiceNone:"No cycles found. Make sure your whole arm is visible.",
+missPalm:"Hand not visible. Bring your palm closer to the camera.",missLift:"Arm or required points not visible (hip and arm needed). Step back from the camera.",missArm:"Arm or required points not visible. Stand sideways so the whole arm is visible.",
+missHand:"Hand not visible or it is the other hand. Show the selected arm: {side}.",missVPalm:"Hand not visible.",missVArm:"Arm not visible.",
+rule:"Counted if the angle range is at least {rom}° and the maximum is at least {max}°",ruleStill:", and the {name} stays still (deviation at most {s}°)",
+noVoice:"No English voice found in the system, messages are text only.",noSynth:"Voice is not supported by this browser, messages are text only.",voiceIs:"Voice: {n}.",
+exportHead:"t,angle"}
+};
+let lang="ru";
+try{const s=localStorage.getItem("lang");if(s&&L[s])lang=s;else{const n=(navigator.language||"ru").slice(0,2);if(L[n])lang=n;}}catch(e){}
+const t=(k,v)=>{let s=(L[lang]&&L[lang][k])??L.ru[k]??k;if(v)for(const x in v)s=s.split("{"+x+"}").join(v[x]);return s;};
+const SPEECH={ru:"ru-RU",kk:"kk-KZ",en:"en-US"};
+
+/* ============ УПРАЖНЕНИЯ ============ */
+const JOINTS=[
+ {id:"lift",pts:["hip","sh","el"],delta:20,rom:60,max:80,color:"#e3a85a",
+  human:{ths:[15,105],ae:172,aw:180,prop:"object",arcAt:"sh"},
+  tx:{
+   ru:{name:"Поднятие объекта",short:"Поднимите предмет рукой вперёд или вверх и опустите.",desc:"Оценивается подъём руки в плечевом суставе (таз-плечо-локоть). Сам предмет в кадре не распознаётся.",maxWhy:"рука поднята недостаточно высоко",
+    steps:["Встаньте боком к камере на расстоянии 2-3 м. В кадре должны быть видны таз, плечо и вся рука.","Возьмите лёгкий предмет в руку. Начальное положение: рука опущена вдоль тела.","Медленно (около 2 секунд) поднимите предмет вперёд до уровня плеча или выше.","Задержитесь на секунду, затем плавно опустите руку.","Повторите 3-5 раз без рывков и без наклона корпуса."],
+    tip:"Одежда должна отличаться по цвету от фона, освещение ровное.",cap:["Рука опущена, предмет в ладони","Медленно поднимите предмет","Рука поднята. Задержитесь на секунду","Плавно опустите"]},
+   kk:{name:"Затты көтеру",short:"Затты қолмен алға немесе жоғары көтеріп, түсіріңіз.",desc:"Иық буынындағы қолдың көтерілуі бағаланады (жамбас-иық-шынтақ). Заттың өзі кадрда танылмайды.",maxWhy:"қол жеткілікті биік көтерілмеді",
+    steps:["Камераға бүйірімен 2-3 м қашықтықта тұрыңыз. Кадрда жамбас, иық және бүкіл қол көрінуі керек.","Қолыңызға жеңіл зат алыңыз. Бастапқы қалып: қол дене бойымен төмен.","Затты баяу (шамамен 2 секунд) алға иық деңгейіне немесе жоғарырақ көтеріңіз.","Бір секунд ұстап тұрыңыз, содан кейін қолды біртіндеп түсіріңіз.","3-5 рет қайталаңыз, жұлқылаусыз және денені бүкпей."],
+    tip:"Киім фоннан түсі бойынша ерекшеленсін, жарық біркелкі болсын.",cap:["Қол төмен, зат алақанда","Затты баяу көтеріңіз","Қол көтерілді. Бір секунд ұстаңыз","Біртіндеп түсіріңіз"]},
+   en:{name:"Lifting an object",short:"Lift an object forward or up with your arm and lower it.",desc:"Arm raise at the shoulder joint is assessed (hip-shoulder-elbow). The object itself is not detected.",maxWhy:"the arm was not raised high enough",
+    steps:["Stand sideways to the camera, 2-3 m away. Your hip, shoulder and whole arm must be visible.","Hold a light object. Starting position: arm down along the body.","Slowly (about 2 seconds) raise the object forward to shoulder level or higher.","Hold for a second, then lower the arm smoothly.","Repeat 3-5 times without jerking or leaning the trunk."],
+    tip:"Clothing should contrast with the background, lighting should be even.",cap:["Arm down, object in palm","Slowly raise the object","Arm raised. Hold for a second","Lower smoothly"]}},
+  draw(g,k,C){const th=lerp(15,105,k),r=th*Math.PI/180,sx=250,sy=70,L=65,ex=sx+Math.sin(r)*L,ey=sy+Math.cos(r)*L,wx=sx+Math.sin(r)*2*L,wy=sy+Math.cos(r)*2*L;
+   line(g,[[250,215],[sx,sy]],C.mute,14);line(g,[[sx,sy],[ex,ey],[wx,wy]],C.teal,14);
+   g.fillStyle=C.warn;g.save();g.translate(wx+Math.sin(r)*14,wy+Math.cos(r)*14);g.rotate(-r);g.fillRect(-14,-14,28,28);g.restore();
+   dots(g,[[250,215],[sx,sy],[ex,ey],[wx,wy]],C.ink);
+   g.strokeStyle=C.warn;g.lineWidth=3;g.beginPath();g.arc(sx,sy,38,Math.PI/2-r,Math.PI/2);g.stroke();
+   txt(g,Math.round(th)+"°",sx+46,sy+34,C.ink,"600 22px sans-serif");txt(g,t("k_hip"),sx+14,219,C.mute);txt(g,t("k_shoulder"),sx-70,sy-8,C.mute);txt(g,t("k_obj"),wx+24,wy+4,C.mute);}},
+ {id:"elbow",pts:["sh","el","wr"],delta:20,rom:90,max:150,color:"#ef6f6f",useModel:true,
+  still:{seg:["sh","el"],max:35},
+  human:{ths:8,ae:[45,165],aw:180,arcAt:"el"},
+  tx:{
+   ru:{name:"Разгибание локтя",short:"Согните и полностью разогните локоть.",desc:"Согните и полностью разогните локоть. Оценивается угол плечо-локоть-запястье.",maxWhy:"недостаточное разгибание",stillName:"плечо",stillWhy:"плечо двигалось, должно оставаться неподвижным",
+    steps:["Встаньте или сядьте боком к камере, чтобы рука была видна целиком от плеча до кисти.","Начальное положение: плечо неподвижно, локоть согнут.","Медленно (около 2 секунд) полностью разогните руку.","Задержитесь на секунду в разогнутом положении.","Плавно вернитесь в начало. Повторите 3-5 раз."],
+    tip:"Плечо не двигайте: движение должно идти только в локте.",cap:["Начальное положение: локоть согнут","Медленно разогните руку","Рука разогнута. Задержитесь на секунду","Плавно вернитесь в начало"]},
+   kk:{name:"Шынтақты жазу",short:"Шынтақты бүгіп, толық жазыңыз.",desc:"Шынтақты бүгіп, толық жазыңыз. Иық-шынтақ-білек буыны бұрышы бағаланады.",maxWhy:"толық жазылмады",stillName:"иық",stillWhy:"иық қозғалды, ол қозғалмай тұруы керек",
+    steps:["Қол иықтан қол басына дейін толық көрінетіндей, камераға бүйірімен тұрыңыз немесе отырыңыз.","Бастапқы қалып: иық қозғалмайды, шынтақ бүгілген.","Қолды баяу (шамамен 2 секунд) толық жазыңыз.","Жазылған қалыпта бір секунд ұстаңыз.","Біртіндеп бастапқы қалпына оралыңыз. 3-5 рет қайталаңыз."],
+    tip:"Иықты қозғалтпаңыз: қозғалыс тек шынтақта болуы керек.",cap:["Бастапқы қалып: шынтақ бүгілген","Қолды баяу жазыңыз","Қол жазылды. Бір секунд ұстаңыз","Біртіндеп бастапқы қалпына оралыңыз"]},
+   en:{name:"Elbow extension",short:"Bend and fully straighten the elbow.",desc:"Bend and fully straighten the elbow. The shoulder-elbow-wrist angle is assessed.",maxWhy:"the arm was not fully straightened",stillName:"shoulder",stillWhy:"the shoulder moved, it must stay still",
+    steps:["Stand or sit sideways to the camera so the whole arm from shoulder to hand is visible.","Starting position: shoulder still, elbow bent.","Slowly (about 2 seconds) straighten the arm fully.","Hold for a second in the straight position.","Smoothly return to the start. Repeat 3-5 times."],
+    tip:"Do not move the shoulder: the movement must come only from the elbow.",cap:["Start: elbow bent","Slowly straighten the arm","Arm straight. Hold for a second","Smoothly return to the start"]}},
+  draw(g,k,C){const a=lerp(45,165,k),sx=250,sy=50,L=100,ex=sx,ey=sy+L,r=a*Math.PI/180,wx=ex+Math.sin(r)*L*1.05,wy=ey-Math.cos(r)*L*1.05;
+   line(g,[[sx,sy],[ex,ey]],C.mute,14);line(g,[[ex,ey],[wx,wy]],C.teal,14);dots(g,[[sx,sy],[ex,ey],[wx,wy]],C.ink);
+   g.strokeStyle=C.warn;g.lineWidth=3;g.beginPath();g.arc(ex,ey,34,-Math.PI/2,-Math.PI/2+r);g.stroke();
+   txt(g,Math.round(a)+"°",ex+44,ey-6,C.ink,"600 22px sans-serif");txt(g,t("k_shoulder"),sx+14,sy+4,C.mute);txt(g,t("k_elbow"),ex-80,ey+4,C.mute);txt(g,t("k_hand"),wx+14,wy+4,C.mute);}},
+ {id:"wrist",pts:["el","wr","hand"],delta:15,rom:30,max:150,color:"#c77dba",mpOnly:true,
+  still:{seg:["el","wr"],max:25},
+  human:{ths:0,ae:90,aw:[175,125],prop:"table",arcAt:"wr"},
+  tx:{
+   ru:{name:"Поднятие запястья",short:"Двигайте кистью вверх при неподвижном предплечье.",desc:"Оценивается угол в лучезапястном суставе (локоть-запястье-кисть). Нужна модель MediaPipe.",maxWhy:"кисть не вернулась в нейтральное положение",stillName:"предплечье",stillWhy:"предплечье двигалось, должно оставаться неподвижным",
+    steps:["Встаньте или сядьте боком к камере. Согните локоть примерно до прямого угла и положите предплечье на опору (стол), чтобы оно не двигалось.","Кисть и пальцы должны быть видны целиком, ладонь смотрит вниз.","Начальное положение: кисть продолжает линию предплечья.","Медленно поднимите кисть вверх, не двигая предплечьем.","Задержитесь на секунду и верните кисть в начальное положение. Повторите 3-5 раз."],
+    tip:"Двигаются только кисть и запястье. Если предплечье смещается, цикл не засчитывается.",cap:["Начальное положение: кисть ровно","Медленно поднимите кисть","Кисть поднята. Задержитесь","Верните кисть в нейтральное положение"]},
+   kk:{name:"Білек буынын көтеру",short:"Білекті қозғалтпай, қол басын жоғары көтеріңіз.",desc:"Білек буынындағы бұрыш бағаланады (шынтақ-білек буыны-қол басы). MediaPipe моделі қажет.",maxWhy:"қол басы бейтарап қалыпқа оралмады",stillName:"білек",stillWhy:"білек қозғалды, ол қозғалмай тұруы керек",
+    steps:["Камераға бүйірімен тұрыңыз немесе отырыңыз. Шынтақты шамамен тік бұрышқа дейін бүгіп, білекті тірекке (үстелге) қойыңыз, ол қозғалмасын.","Қол басы мен саусақтар толық көрінсін, алақан төмен қараған.","Бастапқы қалып: қол басы білектің жалғасы сияқты түзу.","Білекті қозғалтпай, қол басын баяу жоғары көтеріңіз.","Бір секунд ұстап, қол басын бастапқы қалпына қайтарыңыз. 3-5 рет қайталаңыз."],
+    tip:"Тек қол басы мен білек буыны қозғалады. Білек жылжыса, цикл есепке алынбайды.",cap:["Бастапқы қалып: қол басы түзу","Қол басын баяу көтеріңіз","Қол басы көтерілді. Ұстаңыз","Қол басын бейтарап қалыпқа қайтарыңыз"]},
+   en:{name:"Wrist raise",short:"Move the hand up while the forearm stays still.",desc:"The wrist joint angle is assessed (elbow-wrist-hand). The MediaPipe model is required.",maxWhy:"the hand did not return to the neutral position",stillName:"forearm",stillWhy:"the forearm moved, it must stay still",
+    steps:["Stand or sit sideways to the camera. Bend the elbow to about a right angle and rest the forearm on a support (table) so it does not move.","Hand and fingers must be fully visible, palm facing down.","Starting position: the hand continues the line of the forearm.","Slowly raise the hand up without moving the forearm.","Hold for a second and return the hand to the start. Repeat 3-5 times."],
+    tip:"Only the hand and wrist move. If the forearm shifts, the cycle is not counted.",cap:["Start: hand straight","Slowly raise the hand","Hand raised. Hold","Return the hand to neutral"]}},
+  draw(g,k,C){const a=lerp(175,125,k),ex=150,ey=190,wx=320,wy=190,ph=Math.PI-a*Math.PI/180,hx=wx+Math.cos(ph)*80,hy=wy-Math.sin(ph)*80;
+   line(g,[[ex,ey],[wx,wy]],C.mute,14);line(g,[[wx,wy],[hx,hy]],C.teal,14);dots(g,[[ex,ey],[wx,wy],[hx,hy]],C.ink);
+   g.strokeStyle=C.warn;g.lineWidth=3;g.beginPath();g.arc(wx,wy,34,-Math.PI,a*Math.PI/180-Math.PI);g.stroke();
+   txt(g,Math.round(a)+"°",wx-20,wy-44,C.ink,"600 22px sans-serif");txt(g,t("k_elbow"),ex-6,ey+28,C.mute);txt(g,t("k_wrist"),wx-30,wy+30,C.mute);txt(g,t("k_hand"),hx+10,hy+4,C.mute);}},
+ {id:"palm",delta:20,rom:60,max:150,color:"#6cc79a",mpOnly:true,
+  human:{ths:0,ae:60,aw:180,zoom:true},
+  tx:{
+   ru:{name:"Раскрытие ладони",short:"Полностью раскройте ладонь и сожмите в кулак.",desc:"Считается средний угол сгибания суставов четырёх пальцев (MediaPipe Hand Landmarker, 21 точка). Нужна модель MediaPipe.",maxWhy:"ладонь раскрыта не полностью",
+    steps:["Поднесите руку к камере на расстояние 30-50 см, ладонью к объективу. Освещение ровное, фон однотонный.","Вся кисть и все пальцы должны быть в кадре.","Начальное положение: ладонь полностью раскрыта, пальцы выпрямлены.","Медленно (около 2 секунд) сожмите пальцы в кулак.","Задержитесь на секунду, затем плавно раскройте ладонь. Повторите 3-5 раз."],
+    tip:"Не закрывайте пальцы второй рукой и не уводите кисть за край кадра.",cap:["Ладонь раскрыта","Медленно сожмите пальцы","Кулак. Задержитесь на секунду","Плавно раскройте ладонь"]},
+   kk:{name:"Алақанды ашу",short:"Алақанды толық ашып, жұдырықтап түйіңіз.",desc:"Төрт саусақ буындарының орташа бүгілу бұрышы есептеледі (MediaPipe Hand Landmarker, 21 нүкте). MediaPipe моделі қажет.",maxWhy:"алақан толық ашылмады",
+    steps:["Қолды камераға 30-50 см жақындатыңыз, алақан объективке қараған. Жарық біркелкі, фон біртүсті болсын.","Бүкіл қол басы мен барлық саусақ кадрда болуы керек.","Бастапқы қалып: алақан толық ашық, саусақтар түзу.","Саусақтарды баяу (шамамен 2 секунд) жұдырықтап түйіңіз.","Бір секунд ұстап, алақанды біртіндеп ашыңыз. 3-5 рет қайталаңыз."],
+    tip:"Саусақтарды екінші қолмен жаппаңыз және қол басын кадрдан шығармаңыз.",cap:["Алақан ашық","Саусақтарды баяу түйіңіз","Жұдырық. Бір секунд ұстаңыз","Алақанды біртіндеп ашыңыз"]},
+   en:{name:"Opening the palm",short:"Fully open the palm and close it into a fist.",desc:"The average bending angle of the joints of four fingers is calculated (MediaPipe Hand Landmarker, 21 points). The MediaPipe model is required.",maxWhy:"the palm was not fully opened",
+    steps:["Hold your hand 30-50 cm from the camera, palm facing the lens. Even lighting, plain background.","The whole hand and all fingers must be in the frame.","Starting position: palm fully open, fingers straight.","Slowly (about 2 seconds) close the fingers into a fist.","Hold for a second, then smoothly open the palm. Repeat 3-5 times."],
+    tip:"Do not cover the fingers with the other hand and do not move the hand out of the frame.",cap:["Palm open","Slowly close the fingers","Fist. Hold for a second","Smoothly open the palm"]}},
+  draw(g,k,C){const turn=lerp(3,36,k)*Math.PI/180,a=lerp(172,70,k),p=[[130,170],[230,170]];let x=230,y=170;
+   for(let i=1;i<=3;i++){x+=Math.cos(turn*i)*55;y+=Math.sin(turn*i)*55;p.push([x,y]);}
+   line(g,p.slice(0,2),C.mute,22);line(g,p.slice(1),C.teal,14);dots(g,p.slice(1),C.ink);
+   txt(g,t("k_avg")+" "+Math.round(a)+"°",230,60,C.ink,"600 20px sans-serif");txt(g,t("k_palm"),150,215,C.mute);txt(g,t("k_one"),100,260,C.mute,"13px sans-serif");}}
+];
+const ex=J=>J.tx[lang]||J.tx.ru;
+function line(g,pts,c,w){g.lineCap="round";g.lineJoin="round";g.strokeStyle=c;g.lineWidth=w;g.beginPath();pts.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.stroke();}
+function dots(g,pts,c){g.fillStyle=c;for(const[x,y]of pts){g.beginPath();g.arc(x,y,7,0,7);g.fill();}}
+function txt(g,s,x,y,c,f){g.fillStyle=c;g.font=f||"14px sans-serif";g.fillText(s,x,y);}
+const IDX={movenet:{L:{sh:5,el:7,wr:9,hip:11},R:{sh:6,el:8,wr:10,hip:12}},
+ mp:{L:{sh:11,el:13,wr:15,hip:23,ix:19,pk:17},R:{sh:12,el:14,wr:16,hip:24,ix:20,pk:18}}};
+let engine="mp",landmarker=null,handLm=null,movenet=null,running=false,live=false,stream=null,t0=0,model=null,TR=[],runId=0,cur=null,lastFile=null,fileUrl=null,sel=null;
+
+fetch("model.json").then(r=>r.ok?r.json():null).then(m=>{model=m;setMdl();}).catch(()=>{});
+function setMdl(){$("mdl").textContent=model?t("mdlLoaded"):t("mdlBase");}
+
+// ---- голос: подбор естественного женского голоса (как у голосовых помощников) на выбранном языке ----
+const synth=window.speechSynthesis||null;let V=null;
+function scoreV(v){const n=(v.name||"").toLowerCase();let s=0;
+  if(/natural|neural|online|enhanced|premium/.test(n))s+=10;
+  if(/yandex|alice|алис|kaspi|каспи/.test(n))s+=20;
+  if(/svetlana|dariya|milena|alena|alyona|katya|irina|aigul|aria|jenny|samantha|zira|google|светлана|дарья|милена|алена|ирина|айгуль/.test(n))s+=5;
+  if(/pavel|dmitry|daulet|guy|david|mark|male/.test(n)&&!/female/.test(n))s-=4;
+  if(!v.localService)s+=1;return s;}
+function pickVoice(){
+  const vs=synth?synth.getVoices():[],p=SPEECH[lang].slice(0,2);
+  const c=vs.filter(v=>(v.lang||"").toLowerCase().replace("_","-").startsWith(p)).sort((a,b)=>scoreV(b)-scoreV(a));
+  V=c[0]||null;
+  const note=!synth?t("noSynth"):(vs.length&&!V?t("noVoice"):(V?t("voiceIs",{n:V.name}):""));
+  document.querySelectorAll(".vn").forEach(e=>e.textContent=note);
+}
+if(synth)synth.onvoiceschanged=pickVoice;
+function mkUtt(text){const u=new SpeechSynthesisUtterance(text);u.lang=SPEECH[lang];if(V)u.voice=V;u.rate=0.97;u.pitch=1.08;return u;}
+function say(text){if(!synth||!V||!$("voice").checked)return;synth.cancel();synth.speak(mkUtt(text));}
+const speakP=text=>new Promise(res=>{const u=mkUtt(text);u.onend=res;u.onerror=res;synth.speak(u);});
+function setMsg(text,kind){const m=$("msg");m.className="msg"+(kind?" "+kind:"");m.textContent=text;}
+const sideName=s=>s==="R"?t("sideR"):s==="L"?t("sideL"):"";
+const pref=T=>TR.length>1&&T.side?sideName(T.side)+": ":"";
+function announce(T,c){
+  const m=c.ok?t("okMsg",{n:c.n}):t("badMsg",{n:c.n,why:c.why});
+  setMsg(pref(T)+m,c.ok?"ok":"warn");
+  if(live)say(pref(T).replace(":",".")+(c.ok?t("voiceOk"):t("voiceBad",{why:c.why})));
+}
+
+// ---- чтение инструкции вслух ----
+let readTok=0,reading=false;
+function stopRead(){readTok++;reading=false;if(synth)synth.cancel();$("listen").textContent=t("listen");document.querySelectorAll("#steps li").forEach(l=>l.classList.remove("reading"));}
+async function readInstr(){
+  if(reading){stopRead();return;}
+  pickVoice();if(!synth||!V)return;
+  const tok=++readTok;reading=true;$("listen").textContent=t("stopListen");
+  const lis=[...$("steps").children],x=ex(cur);
+  const seq=[[null,x.name+"."],...lis.map((li,i)=>[li,(i+1)+". "+li.textContent]),[null,x.tip]];
+  synth.cancel();
+  for(const [li,s] of seq){
+    if(tok!==readTok)return;
+    lis.forEach(l=>l.classList.remove("reading"));if(li)li.classList.add("reading");
+    await speakP(s);
+  }
+  if(tok===readTok)stopRead();
+}
+
+function features(seg){
+  const a=seg.map(p=>p.a),tt=seg.map(p=>p.t);let v=0;
+  for(let i=1;i<a.length;i++)v=Math.max(v,Math.abs(a[i]-a[i-1])/(Math.max(tt[i]-tt[i-1],1)/1000));
+  const mx=Math.max(...a),mn=Math.min(...a);return [mx-mn,mx,mn,(tt.at(-1)-tt[0])/1000,v];
+}
+function classify(x,J){
+  const rule=x[0]>=J.rom&&x[1]>=J.max;
+  if(model&&J.useModel){
+    const z=x.map((v,i)=>(v-model.mean[i])/model.scale[i]);
+    const s=z.reduce((acc,v,i)=>acc+v*model.coef[i],model.intercept),p=1/(1+Math.exp(-s));
+    return {complete:p>=0.5,conf:Math.max(p,1-p)};
+  }
+  const m=Math.min(Math.abs(x[0]-J.rom)/40,Math.abs(x[1]-J.max)/25,1);
+  return {complete:rule,conf:0.5+0.5*m};
+}
+const ang=(a,b,c)=>{const v1=[a.x-b.x,a.y-b.y,(a.z||0)-(b.z||0)],v2=[c.x-b.x,c.y-b.y,(c.z||0)-(b.z||0)];
+  const d=v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2],n=Math.hypot(...v1)*Math.hypot(...v2)||1;return Math.acos(Math.min(1,Math.max(-1,d/n)))*180/Math.PI;};
+
+// ---- трекер одной руки ----
+const makeTracker=(J,side,idx)=>({J,side,idx,buf:[],cycles:[],sm:null,sc:null,last:{i:0,a:null,kind:null},cand:null,seen:0});
+function push(T,tm,a,s){
+  T.sm=T.sm===null?a:0.6*T.sm+0.4*a;
+  let so=null;if(s!=null){const r=s*Math.PI/180;T.sc=T.sc===null?[Math.cos(r),Math.sin(r)]:[0.6*T.sc[0]+0.4*Math.cos(r),0.6*T.sc[1]+0.4*Math.sin(r)];so=Math.atan2(T.sc[1],T.sc[0])*180/Math.PI;}
+  T.buf.push({t:tm,a:T.sm,s:so});detect(T,T.buf.length-1);
+}
+function detect(T,i){
+  const a=T.buf[i].a,D=T.J.delta;
+  if(T.last.a===null){T.last={i,a,kind:"min"};T.cand={i,a};return;}
+  if(T.last.kind==="min"){
+    if(a<T.last.a&&!T.cand.up){T.last={i,a,kind:"min"};T.cand={i,a};return;}
+    if(!T.cand.up&&a-T.last.a>=D){T.cand={i,a,up:true};}
+    else if(T.cand.up){if(a>T.cand.a)T.cand={i,a,up:true};else if(T.cand.a-a>=D){T.last.peak=T.cand;T.last.kind="max";T.cand={i,a};}}
+  }else{
+    if(a<T.cand.a)T.cand={i,a};
+    else if(a-T.cand.a>=D){finish(T,T.last.i,T.cand.i);T.last={i:T.cand.i,a:T.cand.a,kind:"min"};T.cand={i:T.cand.i,a:T.cand.a};}
+  }
+}
+function stillRange(seg){
+  const ss=seg.map(p=>p.s).filter(v=>v!=null);if(ss.length<3)return 0;
+  const w=d=>((d+540)%360)-180,d=ss.map(v=>w(v-ss[0]));return Math.max(...d)-Math.min(...d);
+}
+function finish(T,s,e){
+  const seg=T.buf.slice(s,e+1);if(seg.length<5)return;
+  const J=T.J,X=ex(J),x=features(seg),r=classify(x,J),sr=J.still?stillRange(seg):0,bad=J.still&&sr>J.still.max;
+  const ok=r.complete&&r.conf>=CONF_MIN&&!bad,why=[];
+  if(!ok){if(x[0]<J.rom)why.push(t("rSmall"));if(x[1]<J.max)why.push(X.maxWhy);if(bad)why.push(X.stillWhy);if(r.conf<CONF_MIN)why.push(t("rConf"));if(!why.length)why.push(t("rInc"));}
+  const c={n:T.cycles.length+1,seg,x,ok,conf:r.conf,why:why.join(", ")};T.cycles.push(c);render(T,c);
+}
+function flush(){for(const T of TR){const pk=T.last.peak;
+  if(T.last.kind==="max"&&pk&&T.buf.length-1-T.last.i>=5&&pk.a-T.buf.at(-1).a>=T.J.delta/2)finish(T,T.last.i,T.buf.length-1);}}
+
+// ---- вывод ----
+function render(T,c){
+  const i=T.idx,n=T.cycles.length,ok=T.cycles.filter(q=>q.ok).length,pct=c.conf*100|0,v=$("v_"+i);
+  v.className="verdict "+(c.ok?"ok":"warn");
+  v.innerHTML=c.ok?t("vOk",{n:c.n,p:pct}):t("vBad",{n:c.n,p:pct,why:c.why});
+  $("s_"+i).textContent=t("stats",{n,ok,bad:n-ok});
+  const li=document.createElement("li");li.style.setProperty("--c",c.ok?"var(--ok)":"var(--warn)");
+  li.innerHTML=`<span>${t(c.ok?"cycOk":"cycBad",{n:c.n})}</span><span>${c.x[2]|0}–${c.x[1]|0}°, ${pct}%</span>`;
+  $("l_"+i).prepend(li);drawPlot(T);announce(T,c);
+}
+function drawPlot(T){
+  const cv=$("p_"+T.idx);if(!cv)return;const g=cv.getContext("2d"),css=getComputedStyle(document.documentElement),W=cv.width,H=cv.height,buf=T.buf;
+  g.clearRect(0,0,W,H);g.strokeStyle=css.getPropertyValue("--line");g.fillStyle=css.getPropertyValue("--mute");g.font="12px sans-serif";
+  const Y=a=>H-6-(a/180)*(H-16);
+  for(const d of [0,90,180]){g.beginPath();g.moveTo(30,Y(d));g.lineTo(W,Y(d));g.stroke();g.fillText(d+"°",2,Y(d)+4);}
+  if(buf.length<2)return;const ta=buf[0].t,tb=buf.at(-1).t,X=tm=>30+(tm-ta)/((tb-ta)||1)*(W-34);
+  for(const c of T.cycles){g.fillStyle=c.ok?"rgba(47,125,91,.18)":"rgba(168,101,15,.2)";g.fillRect(X(c.seg[0].t),0,X(c.seg.at(-1).t)-X(c.seg[0].t),H);}
+  g.strokeStyle=T.J.color;g.lineWidth=2;g.beginPath();buf.forEach((p,i)=>i?g.lineTo(X(p.t),Y(p.a)):g.moveTo(X(p.t),Y(p.a)));g.stroke();g.lineWidth=1;
+}
+const curSides=()=>sel?(sel==="B"?["R","L"]:[sel]):[null];
+function buildUI(msg,sides){
+  TR=(sides||curSides()).map((s,i)=>makeTracker(cur,s,i));$("overall").hidden=true;$("prog").hidden=true;
+  $("joints").innerHTML=TR.map(T=>`${T.side?`<div class="sidehead">${sideName(T.side)}</div>`:""}<div class="verdict" id="v_${T.idx}"><span>${t("notDone")}</span></div><small id="s_${T.idx}">${t("stats0")}</small><canvas id="p_${T.idx}" width="640" height="120" style="background:transparent"></canvas><ol class="cl" id="l_${T.idx}"></ol>`).join("");
+  TR.forEach(drawPlot);setMsg(msg||t("msgDefault"),"");
+}
+function summary(total){
+  if(!TR.length)return;const o=$("overall");o.hidden=false;
+  let html=[],vo=[],allOk=true,anyN=false;
+  for(const T of TR){
+    const n=T.cycles.length,ok=T.cycles.filter(c=>c.ok).length,cov=total?t("cov",{c:Math.round(100*T.seen/total)}):"";
+    const head=TR.length>1&&T.side?sideName(T.side)+": ":"";
+    html.push(head+(n?t("sumHtml",{ok,n,p:Math.round(100*ok/n),cov}):t("sumNone",{cov})));
+    vo.push(head.replace(":",".")+(n?t("sumVoice",{ok,n}):t("sumVoiceNone")));
+    if(n)anyN=true;if(!n||ok!==n)allOk=false;
+  }
+  o.innerHTML=html.join("<br>");
+  const text=html.join(" ").replace(/<[^>]+>/g,"");
+  setMsg((anyN&&allOk?"✔ ":"ℹ ")+text,anyN?(allOk?"ok":"warn"):"");say(vo.join(" "));
+}
+
+// ---- модели позы ----
+const loadScript=src=>new Promise((res,rej)=>{const e=document.createElement("script");e.src=src;e.onload=res;e.onerror=rej;document.head.append(e);});
+async function init(){
+  if(engine==="mp"){
+    if(landmarker)return;$("status").textContent=t("loadMP");
+    const {PoseLandmarker,HandLandmarker,FilesetResolver}=await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs");
+    const fs=await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+    const opts=d=>({baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",delegate:d},runningMode:"VIDEO",numPoses:1});
+    try{landmarker=await PoseLandmarker.createFromOptions(fs,opts("GPU"));}catch(e){landmarker=await PoseLandmarker.createFromOptions(fs,opts("CPU"));}
+    const hopts=d=>({baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",delegate:d},runningMode:"VIDEO",numHands:2});
+    try{handLm=await HandLandmarker.createFromOptions(fs,hopts("GPU"));}catch(e){handLm=await HandLandmarker.createFromOptions(fs,hopts("CPU"));}
+  }else{
+    if(movenet)return;$("status").textContent=t("loadMN");
+    if(!window.tf){await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js");
+      await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js");}
+    await tf.ready();
+    movenet=await poseDetection.createDetector(poseDetection.SupportedModels.MoveNet,{modelType:poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING});
+  }
+}
+async function getPose(ts){
+  const W=vid.videoWidth,H=vid.videoHeight;
+  if(engine==="mp"){
+    const r=landmarker.detectForVideo(vid,ts),lm=r.landmarks[0];if(!lm)return null;const wl=r.worldLandmarks?.[0]||lm;
+    return {calc:wl.map((p,i)=>({x:p.x,y:p.y,z:p.z||0,v:lm[i].visibility??0})),draw:lm.map(p=>({x:p.x*W,y:p.y*H}))};
+  }
+  const ps=await movenet.estimatePoses(vid,{flipHorizontal:false},ts),k=ps[0]?.keypoints;if(!k)return null;
+  const c=k.map(p=>({x:p.x,y:p.y,z:0,v:p.score??0}));return {calc:c,draw:c};
+}
+function pt(f,E,k){
+  if(k==="hand"){const a=f.calc[E.ix],b=f.calc[E.pk];
+    return {c:{x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:(a.z+b.z)/2,v:Math.min(a.v,b.v)}};}
+  return {c:f.calc[E[k]]};
+}
+const HAND_BONES=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+const FING=[[5,6,7],[9,10,11],[13,14,15],[17,18,19]];
+let OW=640;
+function bone(a,b,c,w){octx.strokeStyle=c;octx.lineWidth=w||Math.max(4,OW/150);octx.lineCap="round";octx.beginPath();octx.moveTo(a.x,a.y);octx.lineTo(b.x,b.y);octx.stroke();}
+function dot(p,c,r){octx.fillStyle=c;octx.beginPath();octx.arc(p.x,p.y,r,0,7);octx.fill();octx.strokeStyle="#fff";octx.lineWidth=2;octx.stroke();}
+function lbl(s,x,y,c,size){octx.font="700 "+size+"px sans-serif";octx.lineWidth=4;octx.lineJoin="round";octx.strokeStyle="rgba(0,0,0,.8)";octx.strokeText(s,x,y);octx.fillStyle=c;octx.fillText(s,x,y);}
+function oarc(V,A,B,r,c,val,fs){
+  const a1=Math.atan2(A.y-V.y,A.x-V.x),a2=Math.atan2(B.y-V.y,B.x-V.x);let d=a2-a1;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;
+  octx.strokeStyle=c;octx.lineWidth=4;octx.beginPath();octx.arc(V.x,V.y,r,a1,a1+d,d<0);octx.stroke();
+  const m=a1+d/2;lbl(Math.round(val)+"°",V.x+Math.cos(m)*(r+fs*1.6)-fs,V.y+Math.sin(m)*(r+fs*1.6)+fs/3,c,fs*1.3);
+}
+const mid2=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
+function segLbl(a,b,name,c,fs){const m=mid2(a,b),dx=b.x-a.x,dy=b.y-a.y,n=Math.hypot(dx,dy)||1;lbl(name,m.x+dy/n*fs*1.3,m.y-dx/n*fs*1.0,c,fs);}
+
+function trackSide(T,f,hands,W,Hh,tMs){
+  const J=T.J,isPalm=J.id==="palm";
+  if(!f&&!isPalm)return false;
+  const minV=engine==="mp"?0.5:0.3,fs=Math.max(13,Math.round(W/48)),R=Math.max(5,W/120);let E=null;
+  if(f){
+    if(!T.side){const vis=s=>Math.min(...["sh","el","wr"].map(k=>f.calc[IDX[engine][s][k]].v));T.side=vis("R")>=vis("L")?"R":"L";}
+    E=IDX[engine][T.side];
+  }
+  let H=null;
+  if(hands){const n=hands.landmarks.length;let bi=-1;
+    if(!isPalm){if(f){const wp=f.draw[E.wr];let bd=1e9;for(let i=0;i<n;i++){const d=Math.hypot(hands.landmarks[i][0].x*W-wp.x,hands.landmarks[i][0].y*Hh-wp.y);if(d<bd){bd=d;bi=i;}}}}
+    else if(T.side){const want=T.side==="R"?"Left":"Right";   // MediaPipe считает кадр зеркальным, поэтому метки инвертированы
+      bi=hands.handedness.findIndex(h=>h[0]&&h[0].categoryName===want);if(bi<0&&!live)bi=0;}
+    else bi=0;
+    if(bi>=0)H={calc:hands.worldLandmarks[bi],draw:hands.landmarks[bi].map(p=>({x:p.x*W,y:p.y*Hh}))};
+  }
+  let a,s=null;
+  if(isPalm){
+    if(!H)return false;
+    for(const[p,q]of HAND_BONES)bone(H.draw[p],H.draw[q],COL.hand,Math.max(3,W/220));H.draw.forEach(p=>dot(p,COL.hand,R*.6));
+    dot(H.draw[0],COL.wr,R);lbl(t("k_wrist"),H.draw[0].x+R*1.6,H.draw[0].y+fs*1.6,COL.wr,fs);
+    lbl(t("k_hand"),H.draw[9].x+R*1.2,H.draw[9].y+fs*0.4,COL.hand,fs);lbl(t("k_fingers"),H.draw[12].x+R*1.5,H.draw[12].y-R,COL.hand,fs);
+    a=FING.reduce((sum,[i,j,k])=>sum+ang(H.calc[i],H.calc[j],H.calc[k]),0)/4;
+    lbl(Math.round(a)+"°",H.draw[0].x-fs*3,H.draw[0].y+fs*1.6,COL.hand,fs*1.3);
+  }else{
+    const g=k=>f.draw[E[k]],vis3=["sh","el","wr"].every(k=>f.calc[E[k]].v>=minV),hipOk=f.calc[E.hip].v>=minV;
+    let hp=null;
+    if(vis3){
+      if(hipOk)bone(g("hip"),g("sh"),COL.hip);
+      bone(g("sh"),g("el"),COL.up);bone(g("el"),g("wr"),COL.fore);
+      if(H){for(const[p,q]of HAND_BONES)bone(H.draw[p],H.draw[q],COL.hand,Math.max(3,W/220));H.draw.forEach(p=>dot(p,COL.hand,R*.5));hp=H.draw[9];}
+      else if(E.ix!==undefined){const i1=g("ix"),i2=g("pk");hp=mid2(i1,i2);bone(g("wr"),i1,COL.hand);bone(g("wr"),i2,COL.hand);dot(i1,COL.hand,R*.7);dot(i2,COL.hand,R*.7);}
+      if(hipOk)dot(g("hip"),COL.hip,R);
+      dot(g("sh"),COL.up,R*1.3);dot(g("el"),COL.elb,R*1.3);dot(g("wr"),COL.wr,R*1.2);
+      segLbl(g("sh"),g("el"),t("k_shoulder"),COL.up,fs);segLbl(g("el"),g("wr"),t("k_forearm"),COL.fore,fs);if(hp)segLbl(g("wr"),hp,t("k_hand"),COL.hand,fs);
+      lbl(t("k_shj")+(TR.length>1?" ("+sideName(T.side)+")":""),g("sh").x+R*1.8,g("sh").y-R*1.4,COL.up,fs);lbl(t("k_elbow"),g("el").x+R*1.8,g("el").y-R*1.4,COL.elb,fs);lbl(t("k_wrist"),g("wr").x+R*1.8,g("wr").y+R*3,COL.wr,fs);
+    }
+    const P=J.pts.map(k=>pt(f,E,k));if(Math.min(...P.map(p=>p.c.v))<minV)return false;
+    a=ang(P[0].c,P[1].c,P[2].c);
+    if(vis3){const V=J.id==="lift"?g("sh"):J.id==="elbow"?g("el"):g("wr"),A=J.id==="lift"?g("hip"):J.id==="elbow"?g("sh"):g("el"),B=J.id==="lift"?g("el"):J.id==="elbow"?g("wr"):(hp||g("wr"));
+      oarc(V,A,B,R*4,J.color,a,fs);}
+    if(J.still){const q1=pt(f,E,J.still.seg[0]).c,q2=pt(f,E,J.still.seg[1]).c;s=Math.atan2(q2.y-q1.y,q2.x-q1.x)*180/Math.PI;}
+  }
+  push(T,tMs,a,s);T.seen++;if(T.buf.length%10===0)drawPlot(T);
+  return true;
+}
+async function processFrame(tMs,ts){
+  const W=vid.videoWidth,Hh=vid.videoHeight,J=cur;OW=W;
+  ov.width=W;ov.height=Hh;octx.clearRect(0,0,W,Hh);
+  const f=await getPose(ts);
+  let hands=null;
+  if(engine==="mp"&&handLm&&(J.id==="palm"||J.id==="wrist")){const r=handLm.detectForVideo(vid,ts);if(r.landmarks.length)hands=r;}
+  let any=false;
+  for(const T of TR)if(trackSide(T,f,hands,W,Hh,tMs))any=true;
+  return any;
+}
+
+// ---- камера (реальное время) и файл ----
+const next=cb=>vid.requestVideoFrameCallback?vid.requestVideoFrameCallback(cb):requestAnimationFrame(cb);
+const missMsg=()=>cur.id==="palm"?(sel&&live?t("missHand",{side:sideName(sel)}):t("missPalm")):cur.id==="lift"?t("missLift"):t("missArm");
+let lastOk=0,lastWarn=0;
+async function loop(id){
+  if(!running||id!==runId)return;
+  const now=performance.now(),ok=await processFrame(now-t0,now);
+  $("status").textContent=ok?t("tracking"):missMsg();
+  if(ok)lastOk=now;else if(now-lastOk>5000&&now-lastWarn>12000){lastWarn=now;setMsg("ℹ "+missMsg(),"warn");say(cur.id==="palm"?t("missVPalm"):t("missVArm"));}
+  if(running&&id===runId)next(()=>loop(id));
+}
+const seek=tm=>new Promise(r=>{vid.onseeked=()=>r();vid.currentTime=tm;});
+async function analyzeFile(id){
+  vid.pause();const dur=vid.duration;
+  if(!isFinite(dur)||dur<=0){$("status").textContent=t("noDur");running=false;return;}
+  const step=1/25,total=Math.floor(dur/step)+1,pr=$("prog");let ts=0;pr.hidden=false;pr.max=total;
+  for(let k=0;k<total&&running&&id===runId;k++){
+    await seek(Math.min(k*step,dur-0.001));await processFrame(k*step*1000,ts+=40);
+    pr.value=k+1;if(k%10===0)$("status").textContent=t("fileProg",{p:Math.round(100*(k+1)/total)});
+  }
+  pr.hidden=true;if(id!==runId)return;running=false;flush();summary(total);$("status").textContent=t("fileDone");
+}
+// обратный отсчёт 3-2-1 перед записью с камеры
+function countdown(id){
+  return new Promise(res=>{
+    const el=$("count");let n=3;el.hidden=false;setMsg(t("getReady"),"");
+    const tick=()=>{
+      if(id!==runId){el.hidden=true;return res(false);}
+      if(n===0){el.textContent=t("go");say(t("go"));setTimeout(()=>{el.hidden=true;res(id===runId);},700);return;}
+      el.textContent=String(n);say(t("n"+n));n--;setTimeout(tick,1000);
+    };
+    tick();
+  });
+}
+async function start(isFile){
+  const id=++runId;stopRead();vid.muted=true;live=!isFile;if(!isFile){try{await vid.play();}catch(e){}}
+  engine=$("engine").value;
+  if(cur.mpOnly&&engine==="movenet"){$("status").textContent=t("mpOnly");return;}
+  try{await init();}catch(e){console.error(e);$("status").textContent=t("loadFail");return;}
+  if(id!==runId)return;
+  buildUI(isFile?t("msgAnalyzing"):t("getReady"),curSides());
+  if(!isFile){$("status").textContent="";const ok=await countdown(id);if(!ok||id!==runId)return;}
+  running=true;t0=performance.now();lastOk=t0;lastWarn=t0;
+  setMsg(t("msgDefault"),"");
+  if(isFile){setMsg(t("msgAnalyzing"),"");await analyzeFile(id);}else{$("status").textContent=t("analyzing");say(t("exStart",{name:ex(cur).name}));loop(id);}
+}
+function stopAll(){
+  running=false;live=false;runId++;stopRead();try{vid.pause();}catch(e){}
+  stream?.getTracks().forEach(tr=>tr.stop());stream=null;vid.srcObject=null;vid.removeAttribute("src");try{vid.load();}catch(e){}
+  if(fileUrl){URL.revokeObjectURL(fileUrl);fileUrl=null;}$("prog").hidden=true;$("count").hidden=true;if(synth)synth.cancel();
+}
+function resetAll(){
+  stopAll();octx.clearRect(0,0,ov.width,ov.height);buildUI(t("resetMsg"));
+  $("status").textContent=cur&&cur.mpOnly?t("resetStMp"):t("resetSt");
+  $("redo").hidden=!lastFile;
+}
+function needSide(){const m=cur.id==="lift"?t("pickSideB"):t("pickSide");setMsg("ℹ "+m,"warn");$("sideBox").classList.add("need");pickVoice();say(m);}
+$("cam").onclick=async()=>{
+  if(!sel){needSide();return;}
+  stopAll();let st;
+  try{st=await navigator.mediaDevices.getUserMedia({video:true});}
+  catch(e){$("status").textContent=t("noCam");return;}
+  stream=st;vid.srcObject=st;await start(false);
+};
+async function loadFile(f){
+  stopAll();lastFile=f;$("redo").hidden=false;fileUrl=URL.createObjectURL(f);vid.src=fileUrl;
+  await new Promise(r=>{vid.onloadedmetadata=r;vid.onerror=r;});await start(true);
+}
+$("file").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(f)await loadFile(f);};
+$("redo").onclick=()=>{if(lastFile)loadFile(lastFile);};
+$("stop").onclick=()=>{running=false;runId++;live=false;$("count").hidden=true;vid.pause();stream?.getTracks().forEach(tr=>tr.stop());flush();summary(null);$("status").textContent=t("stopped");};
+$("reset").onclick=resetAll;
+$("listen").onclick=readInstr;
+document.querySelectorAll("button.side").forEach(b=>b.onclick=()=>{
+  sel=b.dataset.side;$("sideBox").classList.remove("need");
+  document.querySelectorAll("button.side").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));
+  if(!running)buildUI(t("msgDefault"));
+});
+
+// ZIP без библиотек
+const crcT=(()=>{const tb=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;tb[n]=c>>>0;}return tb;})();
+const crc32=u=>{let c=-1;for(const b of u)c=crcT[(c^b)&255]^(c>>>8);return (c^-1)>>>0;};
+function makeZip(files){
+  const enc=new TextEncoder(),parts=[],cd=[],u16=n=>[n&255,n>>8&255],u32=n=>[n&255,n>>8&255,n>>16&255,n>>>24];let off=0;
+  for(const [name,text] of files){
+    const nb=enc.encode(name),d=enc.encode(text),c=crc32(d);
+    const h=new Uint8Array([0x50,0x4b,3,4,20,0,0,8,0,0,0,0,0,0,...u32(c),...u32(d.length),...u32(d.length),...u16(nb.length),0,0,...nb]);
+    cd.push(new Uint8Array([0x50,0x4b,1,2,20,0,20,0,0,8,0,0,0,0,0,0,...u32(c),...u32(d.length),...u32(d.length),...u16(nb.length),0,0,0,0,0,0,0,0,0,0,0,0,...u32(off),...nb]));
+    parts.push(h,d);off+=h.length+d.length;
+  }
+  const cdSize=cd.reduce((n,x)=>n+x.length,0),n=files.length;
+  const end=new Uint8Array([0x50,0x4b,5,6,0,0,0,0,...u16(n),...u16(n),...u32(cdSize),...u32(off),0,0]);
+  return new Blob([...parts,...cd,end],{type:"application/zip"});
+}
+$("exp").onclick=()=>{
+  const files=[],rows=[];
+  for(const T of TR)for(const c of T.cycles){const nm=`${T.J.id}${T.side?"_"+T.side:""}_cycle_${c.n}.csv`;
+    files.push([nm,"t,angle\n"+c.seg.map(p=>p.t.toFixed(0)+","+p.a.toFixed(2)).join("\n")]);rows.push(`${nm},,,${T.J.id}`);}
+  if(!files.length){$("status").textContent=t("noExport");return;}
+  files.push(["index_template.csv","path,volunteer_id,label,joint\n"+rows.join("\n")]);
+  const a=document.createElement("a");a.href=URL.createObjectURL(makeZip(files));a.download="cycles.zip";a.click();
+};
+
+// ---- инструкция: видео 1 (реальный человек) и видео 2 (модель человека) ----
+const guide=$("guide"),demo=$("demo"),dctx=demo.getContext("2d"),human=$("human"),hctx=human.getContext("2d"),embed=$("embed");
+const still=matchMedia("(prefers-reduced-motion: reduce)").matches;
+const sstep=x=>x*x*(3-2*x);
+function phase(tm){const p=tm%6;return p<1?{k:0,c:0}:p<3?{k:sstep((p-1)/2),c:1}:p<4?{k:1,c:2}:{k:1-sstep((p-4)/2),c:3};}
+function colors(){const css=getComputedStyle(document.documentElement),v=n=>css.getPropertyValue(n).trim();
+  return {bg:v("--bg"),mute:v("--mute"),teal:v("--teal"),ink:v("--ink"),warn:v("--warn"),ok:v("--ok")};}
+function drawDemo(tm){
+  if(!cur)return;const C=colors(),W=demo.width,H=demo.height,ph=still?{k:1,c:2}:phase(tm);
+  dctx.clearRect(0,0,W,H);dctx.fillStyle=C.bg;dctx.fillRect(0,0,W,H);
+  cur.draw(dctx,ph.k,C);txt(dctx,ex(cur).cap[ph.c],20,H-20,C.ink,"600 18px sans-serif");
+}
+function arcB(g,V,A,B,r,c){const a1=Math.atan2(A[1]-V[1],A[0]-V[0]),a2=Math.atan2(B[1]-V[1],B[0]-V[0]);let d=a2-a1;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;
+  g.strokeStyle=c;g.lineWidth=3;g.beginPath();g.arc(V[0],V[1],r,a1,a1+d,d<0);g.stroke();return a1+d/2;}
+function circ(g,p,r,c){g.fillStyle=c;g.beginPath();g.arc(p[0],p[1],r,0,7);g.fill();g.strokeStyle="#fff";g.lineWidth=2;g.stroke();}
+function zoomHand(g,k,C,ox,oy){
+  const bend=lerp(0,78,k)*Math.PI/180,xs=[-40,-14,12,38],lens=[30,34,32,26];
+  line(g,[[ox,oy+150],[ox,oy+70]],COL.fore,28);
+  g.fillStyle=COL.hand;g.globalAlpha=.28;g.beginPath();g.roundRect?g.roundRect(ox-55,oy-14,110,96,18):g.rect(ox-55,oy-14,110,96);g.fill();g.globalAlpha=1;
+  g.strokeStyle=COL.hand;g.lineWidth=3;g.beginPath();g.roundRect?g.roundRect(ox-55,oy-14,110,96,18):g.rect(ox-55,oy-14,110,96);g.stroke();
+  for(let i=0;i<4;i++){let x=ox+xs[i],y=oy-10,tt=bend*0.6;const pts=[[x,y]];
+    for(let j=0;j<3;j++){y-=lens[i]*Math.cos(tt);pts.push([x,y]);tt+=bend;}
+    line(g,pts,COL.hand,15);for(const p of pts.slice(1))circ(g,p,5,COL.hand);}
+  const ta=lerp(215,325,k)*Math.PI/180,tx=ox-52,ty=oy+44,t1=[tx+Math.cos(ta)*34,ty+Math.sin(ta)*34],t2=[t1[0]+Math.cos(ta+0.35)*28,t1[1]+Math.sin(ta+0.35)*28];
+  line(g,[[tx,ty],t1,t2],COL.hand,15);
+  circ(g,[ox,oy+82],7,COL.wr);txt(g,t("k_wrist"),ox+14,oy+100,C.ink,"600 14px sans-serif");txt(g,t("k_forearm"),ox+20,oy+135,C.ink,"600 14px sans-serif");
+  txt(g,t("k_palm"),ox-24,oy+36,C.ink,"600 14px sans-serif");txt(g,t("k_fingers"),ox-26,oy-126,C.ink,"600 14px sans-serif");
+}
+function drawHuman(tm){
+  if(!cur)return;const g=hctx,C=colors(),W=human.width,Ht=human.height,ph=still?{k:1,c:2}:phase(tm),sp=cur.human,rad=Math.PI/180;
+  g.clearRect(0,0,W,Ht);g.fillStyle=C.bg;g.fillRect(0,0,W,Ht);g.textAlign="left";
+  const v=x=>Array.isArray(x)?lerp(x[0],x[1],ph.k):x,ths=v(sp.ths),ae=v(sp.ae),aw=v(sp.aw),cx=sp.zoom?150:190,S=[cx,100];
+  const fu=Math.atan2(Math.cos(ths*rad),Math.sin(ths*rad)),E=[S[0]+Math.cos(fu)*64,S[1]+Math.sin(fu)*64];
+  const ff=fu+Math.PI+ae*rad,Wr=[E[0]+Math.cos(ff)*58,E[1]+Math.sin(ff)*58];
+  const fh=ff+Math.PI+aw*rad,Hd=[Wr[0]+Math.cos(fh)*34,Wr[1]+Math.sin(fh)*34];
+  g.globalAlpha=.45;
+  line(g,[[cx,205],[cx,268],[cx,325],[cx+28,325]],C.mute,16);line(g,[[cx,98],[cx,205]],C.mute,36);line(g,[[cx,76],[cx,98]],C.mute,10);
+  g.fillStyle=C.mute;g.beginPath();g.arc(cx,52,24,0,7);g.fill();g.globalAlpha=1;
+  g.fillStyle=C.bg;g.beginPath();g.moveTo(cx+22,50);g.lineTo(cx+31,56);g.lineTo(cx+22,60);g.fill();
+  if(sp.prop==="table"){g.fillStyle=C.mute;g.globalAlpha=.6;g.fillRect(cx+34,E[1]+12,230,12);g.fillRect(cx+250,E[1]+24,12,120);g.globalAlpha=1;txt(g,t("k_support"),cx+90,E[1]+46,C.mute,"13px sans-serif");}
+  line(g,[S,E],COL.up,16);line(g,[E,Wr],COL.fore,13);line(g,[Wr,Hd],COL.hand,11);
+  if(sp.prop==="object"){g.save();g.translate(Hd[0]+Math.cos(fh)*14,Hd[1]+Math.sin(fh)*14);g.rotate(fh);g.fillStyle=C.warn;g.fillRect(-14,-14,28,28);g.restore();}
+  circ(g,S,9,COL.up);circ(g,E,9,COL.elb);circ(g,Wr,8,COL.wr);
+  const val=sp.arcAt==="sh"?ths:sp.arcAt==="el"?ae:aw;
+  if(sp.arcAt){const V=sp.arcAt==="sh"?S:sp.arcAt==="el"?E:Wr,A=sp.arcAt==="sh"?[cx,S[1]+60]:sp.arcAt==="el"?S:E,B=sp.arcAt==="sh"?E:sp.arcAt==="el"?Wr:Hd;
+    const m=arcB(g,V,A,B,30,C.warn);g.textAlign="center";txt(g,Math.round(val)+"°",V[0]+Math.cos(m)*54,V[1]+Math.sin(m)*54+7,C.ink,"700 20px sans-serif");g.textAlign="left";}
+  if(sp.zoom){zoomHand(g,ph.k,C,480,190);g.setLineDash([4,4]);line(g,[Hd,[420,160]],C.mute,1.5);g.setLineDash([]);
+    txt(g,t("k_avg")+" "+Math.round(lerp(172,70,ph.k))+"°",300,36,C.ink,"700 18px sans-serif");}
+  else{const parts=[[t("k_shj"),S,COL.up],[t("k_shoulder"),[(S[0]+E[0])/2,(S[1]+E[1])/2],COL.up],[t("k_elbow"),E,COL.elb],[t("k_forearm"),[(E[0]+Wr[0])/2,(E[1]+Wr[1])/2],COL.fore],[t("k_wrist"),Wr,COL.wr],[t("k_hand"),[(Wr[0]+Hd[0])/2,(Wr[1]+Hd[1])/2],COL.hand]].sort((p,q)=>p[1][1]-q[1][1]);
+    parts.forEach((p,i)=>{const y=60+i*46;g.setLineDash([3,4]);g.globalAlpha=.7;line(g,[p[1],[462,y-5]],p[2],1.5);g.globalAlpha=1;g.setLineDash([]);circ(g,[472,y-5],6,p[2]);txt(g,p[0],484,y,C.ink,"600 15px sans-serif");});}
+  txt(g,t("k_step",{i:ph.c+1}),16,26,C.mute,"600 14px sans-serif");txt(g,ex(cur).cap[ph.c],16,Ht-14,C.ink,"700 17px sans-serif");
+}
+function loadGuide(J){
+  guide.hidden=true;demo.hidden=false;embed.hidden=true;embed.removeAttribute("src");guide.removeAttribute("src");
+  $("guideNote").textContent=t("noteScheme",{id:J.id});
+  if(VIDEO_EMBED[J.id]){embed.src=VIDEO_EMBED[J.id];embed.hidden=false;demo.hidden=true;$("guideNote").textContent=t("noteVideo");return;}
+  const list=[`instruction_${J.id}_${lang}.mp4`,`instruction_${J.id}.mp4`,...(J.id==="elbow"?["instruction.mp4"]:[])];let i=0;
+  const tryNext=()=>{if(i<list.length)guide.src=list[i++];};
+  guide.onerror=tryNext;guide.onloadeddata=()=>{guide.hidden=false;demo.hidden=true;$("guideNote").textContent=t("noteVideo");};
+  tryNext();
+}
+
+// ---- язык ----
+function applyLang(){
+  document.documentElement.lang=lang;document.title=t("appTitle");
+  document.querySelectorAll("[data-i]").forEach(e=>{e.textContent=t(e.dataset.i);});
+  document.querySelectorAll("#langbar button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.lang===lang)));
+  $("pause").textContent=paused?t("resume"):t("pause");$("listen").textContent=reading?t("stopListen"):t("listen");
+  buildHome();setMdl();pickVoice();
+  if(cur){fillEx(cur);loadGuide(cur);}
+}
+document.querySelectorAll("#langbar button").forEach(b=>b.onclick=()=>{
+  lang=b.dataset.lang;try{localStorage.setItem("lang",lang);}catch(e){}
+  stopRead();applyLang();
+  if(synth){try{synth.cancel();}catch(e){}}
+});
+
+// ---- навигация ----
+function buildHome(){
+  $("cards").innerHTML="";
+  JOINTS.forEach((J,n)=>{const x=ex(J),b=document.createElement("button");b.className="card";b.style.setProperty("--c",J.color);
+    b.innerHTML=`<b>${n+1}. ${x.name}</b><span>${x.short}</span><em>${t("openSection")}</em>`;b.onclick=()=>{location.hash=J.id;};$("cards").append(b);});
+}
+function fillEx(J){
+  const x=ex(J);
+  $("exTitle").textContent=x.name;$("exDesc").textContent=x.desc;
+  const rule=t("rule",{rom:J.rom,max:J.max})+(J.still?t("ruleStill",{name:x.stillName,s:J.still.max}):"")+".";
+  $("tip").textContent=x.tip+" "+rule;
+  $("steps").innerHTML=x.steps.map(s=>`<li>${s}</li>`).join("");
+  $("demo").setAttribute("aria-label",x.name);$("human").setAttribute("aria-label",x.name);
+}
+function openEx(J){
+  stopAll();cur=J;sel=null;$("home").hidden=true;$("ex").hidden=false;
+  document.querySelectorAll("button.side").forEach(x=>x.setAttribute("aria-pressed","false"));$("sideBox").classList.remove("need");
+  $("sideB").hidden=J.id!=="lift";
+  fillEx(J);
+  const se=$("engine");se.querySelector('[value="movenet"]').disabled=!!J.mpOnly;if(J.mpOnly)se.value="mp";
+  octx.clearRect(0,0,ov.width,ov.height);loadGuide(J);resetAll();animT=0;drawDemo(0);drawHuman(0);pickVoice();window.scrollTo(0,0);
+}
+function goHome(){stopAll();cur=null;$("ex").hidden=true;$("home").hidden=false;}
+function route(){const J=JOINTS.find(j=>j.id===location.hash.slice(1));J?openEx(J):goHome();}
+$("back").onclick=()=>{location.hash="";};
+addEventListener("hashchange",route);
+let animT=0,paused=false,lastTs=0;
+$("pause").onclick=()=>{paused=!paused;$("pause").textContent=paused?t("resume"):t("pause");};
+(function tick(ts){const dt=(ts-lastTs)/1000;lastTs=ts;
+  if(cur){if(!still&&!paused)animT+=Math.min(dt,0.1)*($("slow").checked?0.5:1);if(!demo.hidden)drawDemo(animT);drawHuman(animT);}
+  requestAnimationFrame(tick);})(0);
+applyLang();route();
+</script>
+</body>
+</html>
